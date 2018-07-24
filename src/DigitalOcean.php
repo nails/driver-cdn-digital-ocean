@@ -133,7 +133,6 @@ class DigitalOcean extends Local
      */
     protected function getUri($sUriType)
     {
-//        dd($sUriType, [$this->getSpace(), $this->getDataCenter()], $this->getSetting('uri_' . $sUriType));
         return str_replace(
             ['{{space}}', '{{data_center}}'],
             [$this->getSpace(), $this->getDataCenter()],
@@ -401,7 +400,7 @@ class DigitalOcean extends Local
             $sUrl .= '{{filename}}{{extension}}';
         }
 
-        return $this->urlMakeSecure($sUrl);
+        return $this->urlMakeSecure($sUrl, false);
     }
 
     // --------------------------------------------------------------------------
