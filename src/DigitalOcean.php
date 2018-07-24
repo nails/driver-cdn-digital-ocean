@@ -12,37 +12,44 @@ class DigitalOcean extends Local
 {
     /**
      * The S3 SDK
+     *
      * @var S3Client
      */
     protected $oSdk;
 
     /**
-     * The S3 bucket where items will be stored (not to be confused with internal buckets)
+     * The Digital Ocean DataCenter where the spaces is stored
+     *
      * @var string
      */
-    protected $sS3Bucket;
+    protected $sDoDataCenter;
+
+    /**
+     * The Digital Ocean Space where items will be stored
+     *
+     * @var string
+     */
+    protected $sDoSpace;
 
     // --------------------------------------------------------------------------
 
     /**
      * Returns an instance of the AWS S3 SDK
+     *
      * @return S3Client
-     * @throws DriverException
      */
     protected function sdk()
     {
         if (empty($this->oSdk)) {
-
-            $oCredentials = new Credentials(
-                $this->getSetting('access_key'),
-                $this->getSetting('access_secret')
-            );
-
-            $this->oSdk = S3Client::factory([
-                'credentials' => $oCredentials,
+            $this->oSdk = new \Aws\S3\S3Client([
+                'version'     => 'latest',
+                'endpoint'    => 'https://' . $this->getDataCenter() . '.digitaloceanspaces.com',
+                'region'      => $this->getDataCenter(),
+                'credentials' => new \Aws\Credentials\Credentials(
+                    $this->getSetting('access_key'),
+                    $this->getSetting('access_secret')
+                ),
             ]);
-
-            $this->sS3Bucket = $this->getBucket();
         }
 
         return $this->oSdk;
@@ -51,38 +58,66 @@ class DigitalOcean extends Local
     // --------------------------------------------------------------------------
 
     /**
-     * Returns the Google Storage bucket for this environment
+     * Returns the Digital Ocean Space for this environment
+     *
      * @return string
+     *
      * @throws DriverException
      */
-    protected function getBucket()
+    protected function getSpace()
     {
-        if (empty($this->sS3Bucket)) {
-            $aBuckets = json_decode($this->getSetting('buckets'), true);
-            if (empty($aBuckets)) {
-                throw new DriverException('S3 Buckets have not been defined.');
-            } elseif (empty($aBuckets[Environment::get()])) {
-                throw new DriverException('No bucket defined for the ' . Environment::get() . ' environment.');
+        if (empty($this->sDoSpace)) {
+            $aSpaces = json_decode($this->getSetting('spaces'), true);
+            if (empty($aSpaces)) {
+                throw new DriverException('Digital Ocean Spaces have not been defined.');
+            } elseif (empty($aSpaces[Environment::get()])) {
+                throw new DriverException('No space defined for the ' . Environment::get() . ' environment.');
             } else {
-                $this->sS3Bucket = $aBuckets[Environment::get()];
+                $this->sDoSpace = $aSpaces[Environment::get()];
             }
         }
 
-        return $this->sS3Bucket;
+        return $this->sDoSpace;
     }
 
     // --------------------------------------------------------------------------
 
     /**
-     * Returns the requested URI and replaces {{bucket}} with the S3 bucket being used
+     * Returns the Data center to use
      *
-     * @param $sUriType
+     * @return string
+     *
+     * @throws DriverException
+     */
+    protected function getDataCenter()
+    {
+        if (empty($this->sDoDataCenter)) {
+            $this->sDoDataCenter = $this->getSetting('data_center');
+            if (empty($this->sDoDataCenter)) {
+                throw new DriverException('Digital Ocean Data Center has not been defined.');
+            }
+        }
+
+        return $this->sDoDataCenter;
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Returns the requested URI and replaces {{space}} and {{data_center}} with value from settings
+     *
+     * @param string $sUriType The type of URI which is being generated
      *
      * @return string
      */
     protected function getUri($sUriType)
     {
-        return str_replace('{{bucket}}', $this->getBucket(), $this->getSetting('uri_' . $sUriType));
+//        dd($sUriType, [$this->getSpace(), $this->getDataCenter()], $this->getSetting('uri_' . $sUriType));
+        return str_replace(
+            ['{{space}}', '{{data_center}}'],
+            [$this->getSpace(), $this->getDataCenter()],
+            $this->getSetting('uri_' . $sUriType)
+        );
     }
 
     // --------------------------------------------------------------------------
@@ -114,7 +149,7 @@ class DigitalOcean extends Local
 
             //  Create "normal" version
             $this->sdk()->putObject([
-                'Bucket'      => $this->getBucket(),
+                'Bucket'      => $this->getSpace(),
                 'Key'         => $sBucket . '/' . $sFilename . $sExtension,
                 'SourceFile'  => $sSource,
                 'ContentType' => $sMime,
@@ -123,8 +158,8 @@ class DigitalOcean extends Local
 
             //  Create "download" version
             $this->sdk()->copyObject([
-                'Bucket'             => $this->getBucket(),
-                'CopySource'         => $this->getBucket() . '/' . $sBucket . '/' . $sFilename . $sExtension,
+                'Bucket'             => $this->getSpace(),
+                'CopySource'         => $this->getSpace() . '/' . $sBucket . '/' . $sFilename . $sExtension,
                 'Key'                => $sBucket . '/' . $sFilename . '-download' . $sExtension,
                 'ContentType'        => 'application/octet-stream',
                 'ContentDisposition' => 'attachment; filename="' . str_replace('"', '', $sName) . '" ',
@@ -172,7 +207,7 @@ class DigitalOcean extends Local
             $sFilename  = strtolower(substr($sObject, 0, strrpos($sObject, '.')));
             $sExtension = strtolower(substr($sObject, strrpos($sObject, '.')));
             $aOptions   = [
-                'Bucket'  => $this->getBucket(),
+                'Bucket'  => $this->getSpace(),
                 'Objects' => [
                     ['Key' => $sBucket . '/' . $sFilename . $sExtension],
                     ['Key' => $sBucket . '/' . $sFilename . '-download' . $sExtension],
@@ -217,7 +252,7 @@ class DigitalOcean extends Local
             try {
 
                 $this->sdk()->getObject([
-                    'Bucket' => $this->getBucket(),
+                    'Bucket' => $this->getSpace(),
                     'Key'    => $sBucket . '/' . $sFilename . $sExtension,
                     'SaveAs' => $sSrcFile,
                 ]);
@@ -254,12 +289,12 @@ class DigitalOcean extends Local
     public function bucketCreate($sBucket)
     {
         //  Attempt to create a 'folder' object on S3
-        if (!$this->sdk()->doesObjectExist($this->getBucket(), $sBucket . '/')) {
+        if (!$this->sdk()->doesObjectExist($this->getSpace(), $sBucket . '/')) {
 
             try {
 
                 $this->sdk()->putObject([
-                    'Bucket' => $this->getBucket(),
+                    'Bucket' => $this->getSpace(),
                     'Key'    => $sBucket . '/',
                     'Body'   => '',
                 ]);
@@ -289,11 +324,10 @@ class DigitalOcean extends Local
      */
     public function bucketDestroy($sBucket)
     {
-        //  @todo - consider the implications of bucket deletion; maybe prevent deletion of non-empty buckets
-        dumpanddie('@todo');
+        //  @todo (Pablo - 2018-07-24) - Consider the implications of bucket deletion; maybe prevent deletion of non-empty buckets
         try {
 
-            $this->sdk()->deleteMatchingObjects($this->getBucket(), $sBucket . '/');
+            $this->sdk()->deleteMatchingObjects($this->getSpace(), $sBucket . '/');
             return true;
 
         } catch (\Exception $e) {
@@ -363,7 +397,7 @@ class DigitalOcean extends Local
      */
     public function urlExpiring($sObject, $sBucket, $iExpires, $bForceDownload = false)
     {
-        //  @todo - consider generating a CloudFront expiring/signed URL instead.
+        //  @todo (Pablo - 2018-07-24) - Implement DO's expiring URL system
         return parent::urlExpiring($sObject, $sBucket, $iExpires, $bForceDownload);
     }
 }

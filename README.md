@@ -10,7 +10,7 @@ http://nailsapp.co.uk/modules/cdn/driver/digital-ocean
     composer require nailsapp/driver-cdn-digital-ocean
     
     
-## Configure
+## Configure
 
 The driver can be enabled and configured via the admin interface.
 
