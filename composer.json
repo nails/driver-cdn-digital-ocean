@@ -59,17 +59,13 @@
                         ]
                     },
                     {
-                        "legend": "Data Centre &amp; Spaces",
+                        "legend": "Spaces",
                         "fields": [
-                            {
-                                "key": "data_center",
-                                "label": "Data Center"
-                            },
                             {
                                 "key": "spaces",
                                 "label": "Spaces",
                                 "type": "textarea",
-                                "info": "Spaces should be specified as a JSON object with the environment as the key, and the space as the value. e.g. <code>{\"PRODUCTION\":\"my-space\"}</code>"
+                                "info": "Spaces should be specified as a JSON object with the environment as the key, and the data center and space as the value. e.g. <code>{\"PRODUCTION\":\"datacenter:my-space\"}</code>"
                             }
                         ]
                     },

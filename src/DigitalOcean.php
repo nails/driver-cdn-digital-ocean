@@ -67,13 +67,9 @@ class DigitalOcean extends Local
     protected function getSpace()
     {
         if (empty($this->sDoSpace)) {
-            $aSpaces = json_decode($this->getSetting('spaces'), true);
-            if (empty($aSpaces)) {
-                throw new DriverException('Digital Ocean Spaces have not been defined.');
-            } elseif (empty($aSpaces[Environment::get()])) {
-                throw new DriverException('No space defined for the ' . Environment::get() . ' environment.');
-            } else {
-                $this->sDoSpace = $aSpaces[Environment::get()];
+            $this->sDoSpace = $this->getDataCenterAndSpace()->space;
+            if (empty($this->sDoSpace)) {
+                throw new DriverException('Digital Ocean Space has not been defined.');
             }
         }
 
@@ -92,13 +88,38 @@ class DigitalOcean extends Local
     protected function getDataCenter()
     {
         if (empty($this->sDoDataCenter)) {
-            $this->sDoDataCenter = $this->getSetting('data_center');
+            $this->sDoDataCenter = $this->getDataCenterAndSpace()->data_center;
             if (empty($this->sDoDataCenter)) {
                 throw new DriverException('Digital Ocean Data Center has not been defined.');
             }
         }
 
         return $this->sDoDataCenter;
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Extracts the Data Center and Space from the configs
+     *
+     * @return \stdClass
+     *
+     * @throws DriverException
+     */
+    protected function getDataCenterAndSpace()
+    {
+        $aSpaces = json_decode($this->getSetting('spaces'), true);
+        if (empty($aSpaces)) {
+            throw new DriverException('Digital Ocean Spaces have not been defined.');
+        } elseif (empty($aSpaces[Environment::get()])) {
+            throw new DriverException('No space defined for the ' . Environment::get() . ' environment.');
+        } else {
+            $sDataCenterSpace = explode(':', $aSpaces[Environment::get()]);
+            return (object) [
+                'data_center' => getFromArray(0, $sDataCenterSpace, ''),
+                'space'       => getFromArray(1, $sDataCenterSpace, ''),
+            ];
+        }
     }
 
     // --------------------------------------------------------------------------
@@ -206,15 +227,15 @@ class DigitalOcean extends Local
 
             $sFilename  = strtolower(substr($sObject, 0, strrpos($sObject, '.')));
             $sExtension = strtolower(substr($sObject, strrpos($sObject, '.')));
-            $aOptions   = [
-                'Bucket'  => $this->getSpace(),
-                'Objects' => [
-                    ['Key' => $sBucket . '/' . $sFilename . $sExtension],
-                    ['Key' => $sBucket . '/' . $sFilename . '-download' . $sExtension],
+            $this->sdk()->deleteObjects([
+                'Bucket' => $this->getSpace(),
+                'Delete' => [
+                    'Objects' => [
+                        ['Key' => $sBucket . '/' . $sFilename . $sExtension],
+                        ['Key' => $sBucket . '/' . $sFilename . '-download' . $sExtension],
+                    ],
                 ],
-            ];
-
-            $this->sdk()->deleteObjects($aOptions);
+            ]);
             return true;
 
         } catch (\Exception $e) {
