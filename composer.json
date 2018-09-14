@@ -1,5 +1,5 @@
 {
-    "name": "nailsapp/driver-cdn-digital-ocean",
+    "name": "nails/driver-cdn-digital-ocean",
     "keywords": ["Nails", "Shed Collective", "CodeIgniter", "CDN Module", "Driver", "Digital Ocean"],
     "homepage": "http://nailsapp.co.uk/modules/cdn/driver/digital-ocean",
     "description": "This is the \"Digital Ocean\" driver for the Nails CDN module.",
@@ -37,7 +37,7 @@
             "name": "Digital Ocean",
             "type": "driver",
             "subType": "storage",
-            "forModule": "nailsapp/module-cdn",
+            "forModule": "nails/module-cdn",
             "data": {
                 "namespace": "Nails\\Cdn\\Driver\\",
                 "class": "DigitalOcean",

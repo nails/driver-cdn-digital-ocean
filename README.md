@@ -7,7 +7,7 @@ http://nailsapp.co.uk/modules/cdn/driver/digital-ocean
 
 ## Installing
 
-    composer require nailsapp/driver-cdn-digital-ocean
+    composer require nails/driver-cdn-digital-ocean
     
     
 ## Configure
