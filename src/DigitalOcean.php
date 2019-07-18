@@ -178,6 +178,13 @@ class DigitalOcean extends Local
                 'ACL'         => 'public-read',
             ]);
 
+        } catch (\Exception $e) {
+            $this->setError('AWS-SDK EXCEPTION: [objectCreate:put]: ' . $e->getMessage());
+            return false;
+        }
+
+        try {
+
             //  Create "download" version
             $this->sdk()->copyObject([
                 'Bucket'             => $this->getSpace(),
@@ -192,7 +199,7 @@ class DigitalOcean extends Local
             return true;
 
         } catch (\Exception $e) {
-            $this->setError('AWS-SDK EXCEPTION: [objectCreate]: ' . $e->getMessage());
+            $this->setError('AWS-SDK EXCEPTION: [objectCreate:copy]: ' . $e->getMessage());
             return false;
         }
     }
