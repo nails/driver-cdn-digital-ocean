@@ -1,6 +1,6 @@
 <?php
 
-namespace Nails\Cdn\Driver\Settings;
+namespace Nails\Cdn\Driver\DigitalOCean\Settings;
 
 use Nails\Common\Helper\Form;
 use Nails\Common\Interfaces;
@@ -11,7 +11,7 @@ use Nails\Factory;
 /**
  * Class DigitalOcean
  *
- * @package Nails\Cdn\Driver\Settings
+ * @package Nails\Cdn\Driver\DigitalOCean\Settings
  */
 class DigitalOcean implements Interfaces\Component\Settings
 {
