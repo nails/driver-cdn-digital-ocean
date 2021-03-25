@@ -39,67 +39,10 @@
             "type": "driver",
             "subType": "storage",
             "forModule": "nails/module-cdn",
+            "namespace": "Nails\\Cdn\\Driver\\",
             "data": {
                 "namespace": "Nails\\Cdn\\Driver\\",
-                "class": "DigitalOcean",
-                "settings": [
-                    {
-                        "legend": "Credentials",
-                        "fields": [
-                            {
-                                "key": "access_key",
-                                "label": "Access Key",
-                                "encrypted": true
-                            },
-                            {
-                                "key": "access_secret",
-                                "label": "Access Secret",
-                                "type": "password",
-                                "encrypted": true
-                            }
-                        ]
-                    },
-                    {
-                        "legend": "Spaces",
-                        "fields": [
-                            {
-                                "key": "spaces",
-                                "label": "Spaces",
-                                "type": "textarea",
-                                "info": "Spaces should be specified as a JSON object with the environment as the key, and the data center and space as the value. e.g. <code>{\"PRODUCTION\":\"datacenter:my-space\"}</code>"
-                            }
-                        ]
-                    },
-                    {
-                        "legend": "URLs",
-                        "fields": [
-                            {
-                                "key": "uri_serve",
-                                "label": "Serving URI",
-                                "default": "http://{{space}}.{{data_center}}.digitaloceanspaces.com",
-                                "info": "Value will be passed into <code>siteUrl()</code>"
-                            },
-                            {
-                                "key": "uri_serve_secure",
-                                "label": "Serving URI (Secure)",
-                                "default": "https://{{space}}.{{data_center}}.digitaloceanspaces.com",
-                                "info": "Value will be passed into <code>siteUrl()</code>"
-                            },
-                            {
-                                "key": "uri_process",
-                                "label": "Processing URI",
-                                "default": "cdn",
-                                "info": "Value will be passed into <code>siteUrl()</code>"
-                            },
-                            {
-                                "key": "uri_process_secure",
-                                "label": "Processing URI (Secure)",
-                                "default": "cdn",
-                                "info": "Value will be passed into <code>siteUrl()</code>"
-                            }
-                        ]
-                    }
-                ]
+                "class": "DigitalOcean"
             }
         }
     }
