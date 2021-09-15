@@ -133,7 +133,7 @@ class DigitalOcean extends Local
      *
      * @return string
      */
-    protected function getUri($sUriType)
+    protected function getUri($sUriType): string
     {
         return str_replace(
             ['{{space}}', '{{data_center}}'],
