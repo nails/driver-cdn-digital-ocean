@@ -25,3 +25,6 @@ jobs:
 
             -   name: Run tests
                 run: composer test
+
+            -   name: PHPStan Static Analysis
+                run: composer analyse
