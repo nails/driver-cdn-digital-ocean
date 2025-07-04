@@ -2,36 +2,34 @@
 
 namespace Nails\Cdn\Driver;
 
-use Aws\Common\Credentials\Credentials;
+use Aws\Credentials\Credentials;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
+use Exception;
 use Nails\Cdn\Exception\DriverException;
+use Nails\Common\Exception\EnvironmentException;
+use Nails\Common\Exception\FactoryException;
 use Nails\Common\Service\FileCache;
 use Nails\Environment;
 use Nails\Factory;
+use stdClass;
 
 class DigitalOcean extends Local
 {
     /**
      * The S3 SDK
-     *
-     * @var S3Client
      */
-    protected $oSdk;
+    protected S3Client $oSdk;
 
     /**
-     * The Digital Ocean DataCenter where the spaces is stored
-     *
-     * @var string
+     * The Digital Ocean DataCenter where the space is stored
      */
-    protected $sDoDataCenter;
+    protected string $sDoDataCenter = '';
 
     /**
      * The Digital Ocean Space where items will be stored
-     *
-     * @var string
      */
-    protected $sDoSpace;
+    protected string $sDoSpace = '';
 
     // --------------------------------------------------------------------------
 
@@ -39,15 +37,16 @@ class DigitalOcean extends Local
      * Returns an instance of the AWS S3 SDK
      *
      * @return S3Client
+     * @throws DriverException
      */
-    protected function sdk()
+    protected function sdk(): S3Client
     {
         if (empty($this->oSdk)) {
-            $this->oSdk = new \Aws\S3\S3Client([
+            $this->oSdk = new S3Client([
                 'version'     => 'latest',
                 'endpoint'    => 'https://' . $this->getDataCenter() . '.digitaloceanspaces.com',
                 'region'      => $this->getDataCenter(),
-                'credentials' => new \Aws\Credentials\Credentials(
+                'credentials' => new Credentials(
                     $this->getSetting('access_key'),
                     $this->getSetting('access_secret')
                 ),
@@ -63,10 +62,9 @@ class DigitalOcean extends Local
      * Returns the Digital Ocean Space for this environment
      *
      * @return string
-     *
      * @throws DriverException
      */
-    protected function getSpace()
+    protected function getSpace(): string
     {
         if (empty($this->sDoSpace)) {
             $this->sDoSpace = $this->getDataCenterAndSpace()->space;
@@ -84,10 +82,9 @@ class DigitalOcean extends Local
      * Returns the Data center to use
      *
      * @return string
-     *
      * @throws DriverException
      */
-    protected function getDataCenter()
+    protected function getDataCenter(): string
     {
         if (empty($this->sDoDataCenter)) {
             $this->sDoDataCenter = $this->getDataCenterAndSpace()->data_center;
@@ -104,17 +101,18 @@ class DigitalOcean extends Local
     /**
      * Extracts the Data Center and Space from the configs
      *
-     * @return \stdClass
-     *
+     * @return stdClass
      * @throws DriverException
      */
-    protected function getDataCenterAndSpace()
+    protected function getDataCenterAndSpace(): stdClass
     {
         $aSpaces = json_decode($this->getSetting('spaces'), true);
         if (empty($aSpaces)) {
             throw new DriverException('Digital Ocean Spaces have not been defined.');
+
         } elseif (empty($aSpaces[Environment::get()])) {
             throw new DriverException('No space defined for the ' . Environment::get() . ' environment.');
+
         } else {
             $sDataCenterSpace = explode(':', $aSpaces[Environment::get()]);
             return (object) [
@@ -131,9 +129,9 @@ class DigitalOcean extends Local
      *
      * @param string $sUriType The type of URI which is being generated
      *
-     * @return string
+     * @throws DriverException
      */
-    protected function getUri($sUriType): string
+    protected function getUri(string $sUriType): string
     {
         return str_replace(
             ['{{space}}', '{{data_center}}'],
@@ -151,11 +149,9 @@ class DigitalOcean extends Local
     /**
      * Creates a new object
      *
-     * @param  \stdClass $oData Data to create the object with
-     *
-     * @return boolean
+     * @param stdClass $oData Data to create the object with
      */
-    public function objectCreate($oData)
+    public function objectCreate(stdClass $oData): bool
     {
         $sBucket       = !empty($oData->bucket->slug) ? $oData->bucket->slug : '';
         $sFilenameOrig = !empty($oData->filename) ? $oData->filename : '';
@@ -169,7 +165,7 @@ class DigitalOcean extends Local
 
         try {
 
-            //  Create "normal" version
+            //  Create a "normal" version
             $this->sdk()->putObject([
                 'Bucket'      => $this->getSpace(),
                 'Key'         => $sBucket . '/' . $sFilename . $sExtension,
@@ -178,14 +174,14 @@ class DigitalOcean extends Local
                 'ACL'         => 'public-read',
             ]);
 
-        } catch (\Exception $e) {
-            $this->setError('AWS-SDK EXCEPTION: [objectCreate:put]: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->setError('DO-SDK EXCEPTION: [objectCreate:put]: ' . $e->getMessage());
             return false;
         }
 
         try {
 
-            //  Create "download" version
+            //  Create a "download" version
             $this->sdk()->copyObject([
                 'Bucket'             => $this->getSpace(),
                 'CopySource'         => $this->getSpace() . '/' . $sBucket . '/' . $sFilename . $sExtension,
@@ -198,8 +194,8 @@ class DigitalOcean extends Local
 
             return true;
 
-        } catch (\Exception $e) {
-            $this->setError('AWS-SDK EXCEPTION: [objectCreate:copy]: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->setError('DO-SDK EXCEPTION: [objectCreate:copy]: ' . $e->getMessage());
             return false;
         }
     }
@@ -209,28 +205,71 @@ class DigitalOcean extends Local
     /**
      * Determines whether an object exists or not
      *
-     * @param  string $sFilename The object's filename
-     * @param  string $sBucket   The bucket's slug
-     *
-     * @return boolean
+     * @param string $sFilename The object's filename
+     * @param string $sBucket   The bucket's slug
      */
-    public function objectExists($sFilename, $sBucket)
+    public function objectExists(string $sFilename, string $sBucket): bool
     {
-        return $this->sdk()->doesObjectExist($sBucket, $sFilename);
+        try {
+
+            return $this->sdk()->doesObjectExist($sBucket, $sFilename);
+
+        } catch (Exception $e) {
+            $this->setError('DO-SDK EXCEPTION: [objectExists]: ' . $e->getMessage());
+            return false;
+        }
     }
 
     // --------------------------------------------------------------------------
 
-    public function objectMove($sObject, $sBucket)
-    {
-        throw new \Exception('The Digital Ocean CDN driver does not support moving objects.');
+    /**
+     * Move an object
+     *
+     * @param string $sSourceObject The source object's filename
+     * @param string $sSourceBucket The source bucket's slug
+     * @param string $sTargetObject The target object's filename
+     * @param string $sTargetBucket The target bucket's slug
+     */
+    public function objectMove(
+        string $sSourceObject,
+        string $sSourceBucket,
+        string $sTargetObject,
+        string $sTargetBucket
+    ): bool {
+        try {
+
+            throw new Exception('The Digital Ocean CDN driver does not support moving objects.');
+
+        } catch (Exception $e) {
+            $this->setError('DO-SDK EXCEPTION: [objectMove]: ' . $e->getMessage());
+            return false;
+        }
     }
 
     // --------------------------------------------------------------------------
 
-    public function objectCopy($sObject, $sBucket)
-    {
-        throw new \Exception('The Digital Ocean CDN driver does not support copying objects.');
+    /**
+     * Copy an object
+     *
+     * @param string $sSourceObject The source object's filename
+     * @param string $sSourceBucket The source bucket's slug
+     * @param string $sTargetObject The target object's filename
+     * @param string $sTargetBucket The target bucket's slug
+     */
+    public function objectCopy(
+        string $sSourceObject,
+        string $sSourceBucket,
+        string $sTargetObject,
+        string $sTargetBucket
+    ): bool {
+        try {
+
+            throw new Exception('The Digital Ocean CDN driver does not support copying objects.');
+
+        } catch (Exception $e) {
+            $this->setError('DO-SDK EXCEPTION: [objectCopy]: ' . $e->getMessage());
+            return false;
+        }
     }
 
     // --------------------------------------------------------------------------
@@ -238,12 +277,10 @@ class DigitalOcean extends Local
     /**
      * Destroys (permanently deletes) an object
      *
-     * @param  string $sObject The object's filename
-     * @param  string $sBucket The bucket's slug
-     *
-     * @return boolean
+     * @param string $sObject The object's filename
+     * @param string $sBucket The bucket's slug
      */
-    public function objectDestroy($sObject, $sBucket)
+    public function objectDestroy(string $sObject, string $sBucket): bool
     {
         try {
 
@@ -260,8 +297,8 @@ class DigitalOcean extends Local
             ]);
             return true;
 
-        } catch (\Exception $e) {
-            $this->setError('AWS-SDK EXCEPTION: [objectDestroy]: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->setError('DO-SDK EXCEPTION: [objectDestroy]: ' . $e->getMessage());
             return false;
         }
     }
@@ -271,25 +308,25 @@ class DigitalOcean extends Local
     /**
      * Returns a local path for an object
      *
-     * @param  string $sBucket   The bucket's slug
-     * @param  string $sFilename The filename
+     * @param string $sBucket   The bucket's slug
+     * @param string $sFilename The filename
      *
-     * @return mixed             String on success, false on failure
+     * @return bool|string String on success, false on failure
+     * @throws FactoryException
+     * @throws DriverException
      */
-    public function objectLocalPath($sBucket, $sFilename)
+    public function objectLocalPath(string $sBucket, string $sFilename): bool|string
     {
         /** @var FileCache $oFileCache */
         $oFileCache = Factory::service('FileCache');
 
-        //  Do we have the original sourcefile?
+        //  Do we have the original source file?
         $sExtension = strtolower(substr($sFilename, strrpos($sFilename, '.')));
         $sFilename  = strtolower(substr($sFilename, 0, strrpos($sFilename, '.')));
         $sSrcFile   = $oFileCache->getDir() . $sBucket . '-' . $sFilename . '-SRC' . $sExtension;
 
-        //  Check filesystem for source file
+        //  Check filesystem for a source file
         if (file_exists($sSrcFile)) {
-
-            //  Yup, it's there, so use it
             return $sSrcFile;
 
         } else {
@@ -313,7 +350,7 @@ class DigitalOcean extends Local
                 }
 
                 //  Note the error
-                $this->setError('AWS-SDK EXCEPTION: [objectLocalPath]: ' . $e->getMessage());
+                $this->setError('DO-SDK EXCEPTION: [objectLocalPath]: ' . $e->getMessage());
                 return false;
             }
         }
@@ -328,11 +365,11 @@ class DigitalOcean extends Local
     /**
      * Creates a new bucket
      *
-     * @param  string $sBucket The bucket's slug
+     * @param string $sBucket The bucket's slug
      *
-     * @return boolean
+     * @throws DriverException
      */
-    public function bucketCreate($sBucket)
+    public function bucketCreate(string $sBucket): bool
     {
         //  Attempt to create a 'folder' object on S3
         if (!$this->sdk()->doesObjectExist($this->getSpace(), $sBucket . '/')) {
@@ -347,14 +384,12 @@ class DigitalOcean extends Local
 
                 return true;
 
-            } catch (\Exception $e) {
-                $this->setError('AWS-SDK EXCEPTION: [bucketCreate]: ' . $e->getMessage());
+            } catch (Exception $e) {
+                $this->setError('DO-SDK EXCEPTION: [bucketCreate]: ' . $e->getMessage());
                 return false;
             }
 
         } else {
-
-            //  Bucket already exists.
             return true;
         }
     }
@@ -364,11 +399,9 @@ class DigitalOcean extends Local
     /**
      * Deletes an existing bucket
      *
-     * @param  string $sBucket The bucket's slug
-     *
-     * @return boolean
+     * @param string $sBucket The bucket's slug
      */
-    public function bucketDestroy($sBucket)
+    public function bucketDestroy(string $sBucket): bool
     {
         //  @todo (Pablo - 2018-07-24) - Consider the implications of bucket deletion; maybe prevent deletion of non-empty buckets
         try {
@@ -376,8 +409,8 @@ class DigitalOcean extends Local
             $this->sdk()->deleteMatchingObjects($this->getSpace(), $sBucket . '/');
             return true;
 
-        } catch (\Exception $e) {
-            $this->setError('AWS-SDK EXCEPTION: [bucketDestroy]: ' . $e->getMessage());
+        } catch (Exception $e) {
+            $this->setError('DO-SDK EXCEPTION: [bucketDestroy]: ' . $e->getMessage());
             return false;
         }
     }
@@ -391,12 +424,10 @@ class DigitalOcean extends Local
     /**
      * Generate the correct URL for serving a file direct from the file system
      *
-     * @param  string $sObject The object to serve
-     * @param  string $sBucket The bucket to serve from
-     *
-     * @return string
+     * @param string $sObject The object to serve
+     * @param string $sBucket The bucket to serve from
      */
-    public function urlServeRaw($sObject, $sBucket)
+    public function urlServeRaw(string $sObject, string $sBucket): string
     {
         return $this->urlServe($sObject, $sBucket);
     }
@@ -406,16 +437,16 @@ class DigitalOcean extends Local
     /**
      * Returns the scheme of 'serve' URLs
      *
-     * @param  boolean $bForceDownload Whether or not to force download
+     * @param bool $bForceDownload Whether to force download
      *
-     * @return string
+     * @throws DriverException
      */
-    public function urlServeScheme($bForceDownload = false)
+    public function urlServeScheme(bool $bForceDownload = false): string
     {
         $sUrl = addTrailingSlash($this->getUri('serve')) . '{{bucket}}/';
 
         /**
-         * If we're forcing the download we need to reference a slightly different file.
+         * If we're forcing the download, we need to reference a slightly different file.
          * On upload two instances were created, the "normal" streaming type one and
          * another with the appropriate Content-Types set so that the browser downloads
          * as opposed to renders it
@@ -434,14 +465,15 @@ class DigitalOcean extends Local
     /**
      * Generates a properly hashed expiring url
      *
-     * @param  string  $sBucket        The bucket which the image resides in
-     * @param  string  $sObject        The object to be served
-     * @param  integer $iExpires       The length of time the URL should be valid for, in seconds
-     * @param  boolean $bForceDownload Whether to force a download
+     * @param string $sBucket        The bucket which the image resides in
+     * @param string $sObject        The object to be served
+     * @param int    $iExpires       The length of time the URL should be valid for, in seconds
+     * @param bool   $bForceDownload Whether to force a download
      *
-     * @return string
+     * @throws FactoryException
+     * @throws EnvironmentException
      */
-    public function urlExpiring($sObject, $sBucket, $iExpires, $bForceDownload = false)
+    public function urlExpiring(string $sObject, string $sBucket, int $iExpires, bool $bForceDownload = false): string
     {
         //  @todo (Pablo - 2018-07-24) - Implement DO's expiring URL system
         return parent::urlExpiring($sObject, $sBucket, $iExpires, $bForceDownload);
