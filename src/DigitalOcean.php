@@ -221,6 +221,20 @@ class DigitalOcean extends Local
 
     // --------------------------------------------------------------------------
 
+    public function objectMove($sObject, $sBucket)
+    {
+        throw new \Exception('The Digital Ocean CDN driver does not support moving objects.');
+    }
+
+    // --------------------------------------------------------------------------
+
+    public function objectCopy($sObject, $sBucket)
+    {
+        throw new \Exception('The Digital Ocean CDN driver does not support copying objects.');
+    }
+
+    // --------------------------------------------------------------------------
+
     /**
      * Destroys (permanently deletes) an object
      *
