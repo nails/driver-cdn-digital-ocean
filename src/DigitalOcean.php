@@ -212,7 +212,10 @@ class DigitalOcean extends Local
     {
         try {
 
-            return $this->sdk()->doesObjectExist($sBucket, $sFilename);
+            return $this->sdk()->doesObjectExist(
+                $this->getBucket(),
+                $sBucket . '/' . $sFilename
+            );
 
         } catch (Exception $e) {
             $this->setError('DO-SDK EXCEPTION: [objectExists]: ' . $e->getMessage());
