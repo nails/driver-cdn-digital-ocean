@@ -422,12 +422,60 @@ class DigitalOcean extends Local
             }
 
         } catch (\Exception $e) {
-            $sMessage  = 'AWS-SDK EXCEPTION: [objectMetaDataIsCorrect]: ' . $e->getMessage();
+            $sMessage  = 'AWS-SDK EXCEPTION: [getObjectMetaDataErrors]: ' . $e->getMessage();
             $aErrors[] = $sMessage;
             $this->setError($sMessage);
         }
 
         return $aErrors;
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Attempt to fix object meta data
+     *
+     * @param string $sFilename        The object's filename
+     * @param string $sFilenameDisplay The object's human-friendly name
+     * @param string $sBucket          The bucket's slug
+     * @param string $sMimeType        The object's mime type
+     *
+     * @return bool
+     */
+    public function fixObjectMetaDataErrors(
+        string $sFilename,
+        string $sFilenameDisplay,
+        string $sBucket,
+        string $sMimeType
+    ): bool {
+        try {
+
+            $sExtension = strtolower(substr($sFilename, strrpos($sFilename, '.') + 1));
+            $sFilename  = strtolower(substr($sFilename, 0, strrpos($sFilename, '.')));
+
+            $this->sdk()->copyObject([
+                'Bucket'            => $this->getBucket(),
+                'CopySource'        => sprintf('%s/%s/%s.%s', $this->getBucket(), $sBucket, $sFilename, $sExtension),
+                'Key'               => sprintf('%s/%s.%s', $sBucket, $sFilename, $sExtension),
+                'ContentType'       => $sMimeType,
+                'MetadataDirective' => 'REPLACE',
+            ]);
+
+            $this->sdk()->copyObject([
+                'Bucket'             => $this->getBucket(),
+                'CopySource'         => sprintf('%s/%s/%s-download.%s', $this->getBucket(), $sBucket, $sFilename, $sExtension),
+                'Key'                => sprintf('%s/%s-download.%s', $sBucket, $sFilename, $sExtension),
+                'ContentType'        => 'application/octet-stream',
+                'ContentDisposition' => 'attachment; filename="' . str_replace('"', '', $sFilenameDisplay) . '"',
+                'MetadataDirective'  => 'REPLACE',
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            $this->setError('AWS-SDK EXCEPTION: [fixObjectMetaDataErrors]: ' . $e->getMessage());
+            return false;
+        }
     }
 
     // --------------------------------------------------------------------------
